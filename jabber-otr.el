@@ -46,14 +46,10 @@
 	 (coding-system-for-write 'raw-text)
 	 (coding-system-for-read 'raw-text)
 	 (process (start-process "jabber-otr" (generate-new-buffer "jabber-otr")
-				 jabber-otr-program (expand-file-name jabber-otr-dir)))
-	 (account-command
-	  '(:command "account" :name "foo@example.com" :protocol "xmpp"
-		     :max_message_size 10000)))
+				 jabber-otr-program (expand-file-name jabber-otr-dir))))
     (setq jabber-otr-process process)
     (set-process-filter process 'jabber-otr-filter)
-    (set-process-sentinel process 'jabber-otr-sentinel)
-    (jabber-otr--send-command process account-command)))
+    (set-process-sentinel process 'jabber-otr-sentinel)))
 
 (defun jabber-otr--send-command (process json-command)
   (message "Sending to process: %S" json-command)
