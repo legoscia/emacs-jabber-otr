@@ -124,10 +124,22 @@
 	    (when text
 	      (let ((in-flight-notice (assq 'otr-in-flight (cdr entry))))
 		(setf (car in-flight-notice) 'otr-decoded)
-		(setf (cadr in-flight-notice) text)
-		;; Now how do I redisplay this...
-		
-      )))))))))
+		(setf (cadr in-flight-notice) text))
+	      ;; Now how do I redisplay this...
+	      (let ((buffer (get-buffer (jabber-chat-get-buffer them))))
+		(when buffer
+		  (with-current-buffer buffer
+		    ;; This _should_ almost always be the last node.
+		    ;; Go backwards if needed just to be sure...
+		    ;; TODO: don't go all the way if it's missing
+		    ;; for some reason.
+		    (let ((node (ewoc-nth jabber-chat-ewoc -1)))
+		      (while (and node
+				  (or (not (eq (cadr (ewoc-data node))
+					       (cdr entry)))
+				      (prog1 nil
+					(ewoc-invalidate jabber-chat-ewoc node))))
+			(setq node (ewoc-prev jabber-chat-ewoc node)))))))))))))))
 
 (defun jabber-otr-send (jc contact message)
   (interactive
