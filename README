@@ -1,0 +1,21 @@
+OTR support for emacs-jabber; work in progress.
+
+How to use it:
+
+1. Install python-potr.  Run:
+
+   sudo pip install python-potr
+
+   or see https://github.com/python-otr/pure-python-otr .
+
+2. Load jabber-otr.el.
+
+3. M-: (jabber-otr-start)
+
+4. To send a message, use M-x jabber-otr-send.  Currently, the first
+   message you send is "lost" if an encrypted session hasn't been
+   established yet.  Just send it again.
+
+5. Received messages should be decrypted automatically.
+
+TODO: verify signatures, improve UI, handle HTML.
