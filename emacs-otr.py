@@ -112,7 +112,7 @@ class EmacsOtr:
         if which == 'receive':
             account_name = cmd['account']
             contact = cmd['contact']
-            body = cmd['body']
+            body = cmd['body'].encode('utf-8')
             closure = cmd.get('closure', None)
 
             account = self.get_account(account_name)
@@ -123,7 +123,7 @@ class EmacsOtr:
         elif which == 'send':
             account_name = cmd['account']
             contact = cmd['contact']
-            body = cmd['body']
+            body = cmd['body'].encode('utf-8')
             closure = cmd.get('closure', None)
 
             account = self.get_account(account_name)
