@@ -56,6 +56,10 @@ Either plaintext, encrypted or finished.")
     (set-process-filter process 'jabber-otr-filter)
     (set-process-sentinel process 'jabber-otr-sentinel)))
 
+(defun jabber-otr--ensure-started ()
+  (unless (process-live-p jabber-otr-process)
+    (jabber-otr-start)))
+
 (defun jabber-otr--send-command (process json-command)
   (message "Sending to process: %S" json-command)
   ;; Need to add trailing newline - apparently the remote process uses
@@ -161,6 +165,7 @@ Either plaintext, encrypted or finished.")
     (jabber-read-account)
     (jabber-read-jid-completing "Send encrypted message to: ")
     (jabber-read-with-input-method "Message: ")))
+  (jabber-otr--ensure-started)
   (let ((our-jid (jabber-connection-bare-jid jc)))
     (jabber-otr--send-command
      jabber-otr-process
@@ -197,6 +202,7 @@ Either plaintext, encrypted or finished.")
 	(us (jabber-connection-bare-jid jc)))
     (when (and body (string-prefix-p "?OTR" body))
       ;; This looks like an OTR message.
+      (jabber-otr--ensure-started)
       (let ((n (cl-incf jabber-otr--counter)))
 	(nconc xml-data (list (list 'otr-in-flight () (number-to-string n))))
 	(push (cons n xml-data) jabber-otr--messages-in-flight)
