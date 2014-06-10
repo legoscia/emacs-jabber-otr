@@ -119,7 +119,9 @@ class EmacsOtr:
             context = account.get_context(contact)
 
             result = context.receiveMessage(body, inject)
-            return {'result': result, 'injected': injected, 'closure': closure}
+            new_state = state_to_string(context.state)
+            return {'result': result, 'injected': injected,
+                    'new_state': new_state, 'closure': closure}
         elif which == 'send':
             account_name = cmd['account']
             contact = cmd['contact']
@@ -132,9 +134,21 @@ class EmacsOtr:
             result = context.sendMessage(potr.context.FRAGMENT_SEND_ALL,
                                          body,
                                          appdata = inject)
-            return {'result': result, 'injected': injected, 'closure': closure}
+            new_state = state_to_string(context.state)
+            return {'result': result, 'injected': injected,
+                    'new_state': new_state, 'closure': closure}
         else:
             return {'error': 'Unknown commmand "%s"' % which}
+
+def state_to_string(state):
+    if state == potr.context.STATE_PLAINTEXT:
+        return "plaintext"
+    elif state == potr.context.STATE_ENCRYPTED:
+        return "encrypted"
+    elif state == potr.context.STATE_FINISHED:
+        return "finished"
+    else:
+        raise TypeError('unknown state %s' % state)
 
 directory = sys.argv[1]
 otr = EmacsOtr(directory)

@@ -34,6 +34,11 @@
 
 (defvar jabber-otr-process nil)
 
+(defvar jabber-otr--state 'plaintext
+  "State of OTR state machine for contact in current buffer.
+Either plaintext, encrypted or finished.")
+(make-variable-buffer-local 'jabber-otr--state)
+
 (defun jabber-otr-start ()
   ;; TODO: when requiring Emacs 24.5, use with-file-modes
   (let ((old-umask (default-file-modes)))
@@ -91,12 +96,24 @@
 (defun jabber-otr-handle-response (_process response)
   (message "Got response: %S" response)
   (let* ((closure (cdr (assq 'closure response)))
+	 (us (aref closure 1))
+	 (them (aref closure 2))
+	 (buffer (get-buffer (jabber-chat-get-buffer them)))
+	 (new-state (intern (cdr (assq 'new_state response))))
 	 (type (and (arrayp closure) (aref closure 0))))
+    (when buffer
+      (with-current-buffer buffer
+	(let ((previous-state jabber-otr--state))
+	  (setq jabber-otr--state new-state)
+	  (unless (eq previous-state new-state)
+	    (ewoc-enter-last
+	     jabber-chat-ewoc
+	     (list :notice (format "OTR state changed from %s to %s"
+				   previous-state new-state)
+		   :time (current-time)))))))
     (cond
      ((equal type "send")
-      (let* ((us (aref closure 1))
-	     (jc (jabber-find-connection us))
-	     (them (aref closure 2))
+      (let* ((jc (jabber-find-connection us))
 	     (injected-messages (cdr (assq 'injected response)))
 	     (result (cdr (assq 'result response))))
 	;; TODO: injected?  I'm not sure why we sometimes get one and
@@ -106,9 +123,7 @@
 	(when result
 	  (jabber-send-message jc them nil result "chat"))))
      ((equal type "receive")
-      (let* ((us (aref closure 1))
-	     (them (aref closure 2))
-	     (n (aref closure 3))
+      (let* ((n (aref closure 3))
 	     (entry (assq n jabber-otr--messages-in-flight))
 	     (injected-messages (cdr (assq 'injected response)))
 	     (result (cdr (assq 'result response)))
@@ -126,20 +141,19 @@
 		(setf (car in-flight-notice) 'otr-decoded)
 		(setf (cadr in-flight-notice) text))
 	      ;; Now how do I redisplay this...
-	      (let ((buffer (get-buffer (jabber-chat-get-buffer them))))
-		(when buffer
-		  (with-current-buffer buffer
-		    ;; This _should_ almost always be the last node.
-		    ;; Go backwards if needed just to be sure...
-		    ;; TODO: don't go all the way if it's missing
-		    ;; for some reason.
-		    (let ((node (ewoc-nth jabber-chat-ewoc -1)))
-		      (while (and node
-				  (or (not (eq (cadr (ewoc-data node))
-					       (cdr entry)))
-				      (prog1 nil
-					(ewoc-invalidate jabber-chat-ewoc node))))
-			(setq node (ewoc-prev jabber-chat-ewoc node)))))))))))))))
+	      (when buffer
+		(with-current-buffer buffer
+		  ;; This _should_ almost always be the last node.
+		  ;; Go backwards if needed just to be sure...
+		  ;; TODO: don't go all the way if it's missing
+		  ;; for some reason.
+		  (let ((node (ewoc-nth jabber-chat-ewoc -1)))
+		    (while (and node
+				(or (not (eq (cadr (ewoc-data node))
+					     (cdr entry)))
+				    (prog1 nil
+				      (ewoc-invalidate jabber-chat-ewoc node))))
+		      (setq node (ewoc-prev jabber-chat-ewoc node))))))))))))))
 
 (defun jabber-otr-send (jc contact message)
   (interactive
