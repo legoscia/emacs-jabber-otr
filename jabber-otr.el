@@ -39,6 +39,9 @@
 Either plaintext, encrypted or finished.")
 (make-variable-buffer-local 'jabber-otr--state)
 
+(defvar jabber-otr--debug nil
+  "Display debug messages for OTR program.")
+
 (defun jabber-otr-start ()
   ;; TODO: when requiring Emacs 24.5, use with-file-modes
   (let ((old-umask (default-file-modes)))
@@ -61,7 +64,8 @@ Either plaintext, encrypted or finished.")
     (jabber-otr-start)))
 
 (defun jabber-otr--send-command (process json-command)
-  (message "Sending to process: %S" json-command)
+  (when jabber-otr--debug
+    (message "Sending to process: %S" json-command))
   ;; Need to add trailing newline - apparently the remote process uses
   ;; line buffering.
   (let ((encoded (encode-coding-string (concat (json-encode json-command) "\n")
@@ -98,7 +102,8 @@ Either plaintext, encrypted or finished.")
 	     (buffer-string))))
 
 (defun jabber-otr-handle-response (_process response)
-  (message "Got response: %S" response)
+  (when jabber-otr--debug
+    (message "Got response: %S" response))
   (let* ((closure (cdr (assq 'closure response)))
 	 (us (aref closure 1))
 	 (them (aref closure 2))
