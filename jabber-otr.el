@@ -159,21 +159,46 @@ Either plaintext, encrypted or finished.")
 				      (ewoc-invalidate jabber-chat-ewoc node))))
 		      (setq node (ewoc-prev jabber-chat-ewoc node))))))))))))))
 
-(defun jabber-otr-send (jc contact message)
-  (interactive
-   (list
-    (jabber-read-account)
-    (jabber-read-jid-completing "Send encrypted message to: ")
-    (jabber-read-with-input-method "Message: ")))
+;;;###autoload
+(defun jabber-otr-encrypt ()
+  "Request to activate encryption in the current chat buffer."
+  (interactive)
+  (unless (derived-mode-p 'jabber-chat-mode)
+    (error "Not in chat buffer"))
+  ;; Attempt to activate encryption no matter what state we (think we)
+  ;; are in.
+  (setq jabber-send-function 'jabber-otr-send)
   (jabber-otr--ensure-started)
-  (let ((our-jid (jabber-connection-bare-jid jc)))
-    (jabber-otr--send-command
-     jabber-otr-process
-     (list :command "send"
-	   :account our-jid
-	   :contact (jabber-jid-user contact)
-	   :body message
-	   :closure (list "send" our-jid contact)))))
+  (jabber-otr--send-command
+   jabber-otr-process
+   (list :command "send"
+	 :account (jabber-connection-bare-jid jabber-buffer-connection)
+	 :contact (jabber-jid-user jabber-chatting-with)
+	 :body "?OTRv?"
+	 :closure (list "send" (jabber-connection-bare-jid jabber-buffer-connection)
+			jabber-chatting-with))))
+
+(defun jabber-otr-send (jc message)
+  "Function for use as `jabber-send-function' in encrypted chats.
+This doesn't directly send an XMPP stanza, but sends it to our
+OTR driver and waits for instructions."
+  (if (eq jabber-otr--state 'encrypted)
+       (let ((our-jid (jabber-connection-bare-jid jc)))
+	 (jabber-otr--ensure-started)
+	 (jabber-maybe-print-rare-time
+	  (ewoc-enter-last
+	   jabber-chat-ewoc
+	   (list :local `(message () (body () ,message))
+		 :time (current-time))))
+	 (jabber-otr--send-command
+	  jabber-otr-process
+	  (list :command "send"
+		:account our-jid
+		:contact (jabber-jid-user jabber-chatting-with)
+		:body message
+		:closure (list "send" our-jid jabber-chatting-with))))
+    (error "Attempted to send encrypted message in OTR state %s"
+	   jabber-otr--state)))
 
 (defun jabber-otr-receive (us them message n)
   (jabber-otr--send-command
