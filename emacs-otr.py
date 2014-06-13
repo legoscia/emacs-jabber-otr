@@ -118,9 +118,15 @@ class EmacsOtr:
             account = self.get_account(account_name)
             context = account.get_context(contact)
 
-            result = context.receiveMessage(body, inject)
+            try:
+                result, tlvs = context.receiveMessage(body, inject)
+                response = 'result'
+            except potr.context.NotEncryptedError:
+                response = 'error'
+                result = 'Received encrypted message, but couldn\'t decrypt it'
+            # TODO: do something with TLVs
             new_state = state_to_string(context.state)
-            return {'result': result, 'injected': injected,
+            return {response: result, 'injected': injected,
                     'new_state': new_state, 'closure': closure}
         elif which == 'send':
             account_name = cmd['account']

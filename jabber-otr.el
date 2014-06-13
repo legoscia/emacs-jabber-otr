@@ -113,6 +113,8 @@ Either plaintext, encrypted or finished.")
     (when buffer
       (with-current-buffer buffer
 	(let ((previous-state jabber-otr--state))
+	  ;; TODO: appropriate for all states?
+	  (setq jabber-send-function 'jabber-otr-send)
 	  (setq jabber-otr--state new-state)
 	  (unless (eq previous-state new-state)
 	    (ewoc-enter-last
@@ -136,6 +138,7 @@ Either plaintext, encrypted or finished.")
 	     (entry (assq n jabber-otr--messages-in-flight))
 	     (injected-messages (cdr (assq 'injected response)))
 	     (result (cdr (assq 'result response)))
+	     (err (cdr (assq 'error response)))
 	     (jc (jabber-find-connection us)))
 	;; TODO: handle result too
 	;; Convert injected-messages from vector to list
@@ -143,26 +146,36 @@ Either plaintext, encrypted or finished.")
 	  (jabber-send-message jc them nil injected "chat"))
 	(setq jabber-otr--messages-in-flight
 	      (delq entry jabber-otr--messages-in-flight))
-	(when (arrayp result)
-	  (let ((text (aref result 0)))
-	    (when text
-	      (let ((in-flight-notice (assq 'otr-in-flight (cdr entry))))
-		(setf (car in-flight-notice) 'otr-decoded)
-		(setf (cadr in-flight-notice) text))
-	      ;; Now how do I redisplay this...
-	      (when buffer
-		(with-current-buffer buffer
-		  ;; This _should_ almost always be the last node.
-		  ;; Go backwards if needed just to be sure...
-		  ;; TODO: don't go all the way if it's missing
-		  ;; for some reason.
-		  (let ((node (ewoc-nth jabber-chat-ewoc -1)))
-		    (while (and node
-				(or (not (eq (cadr (ewoc-data node))
-					     (cdr entry)))
-				    (prog1 nil
-				      (ewoc-invalidate jabber-chat-ewoc node))))
-		      (setq node (ewoc-prev jabber-chat-ewoc node))))))))))))))
+	(let ((in-flight-notice (assq 'otr-in-flight (cdr entry))))
+	  (cond
+	   (result
+	    (setf (car in-flight-notice) 'otr-decoded)
+	    (setf (cadr in-flight-notice) result))
+	   (err
+	    (setf (car in-flight-notice) 'otr-error)
+	    (setf (cadr in-flight-notice) err))
+	   (t
+	    (setf (car in-flight-notice) 'otr-nothing))))
+	;; Now how do I redisplay this...
+	(when buffer
+	  (with-current-buffer buffer
+	    ;; This _should_ almost always be the last node.
+	    ;; Go backwards if needed just to be sure...
+	    ;; TODO: don't go all the way if it's missing
+	    ;; for some reason.
+	    (let ((node (ewoc-nth jabber-chat-ewoc -1))
+		  (inhibit-read-only t))
+	      (while (and node
+			  (or (not (eq (cadr (ewoc-data node))
+				       (cdr entry)))
+			      (prog1 nil
+				(if (or result err)
+				    (ewoc-invalidate jabber-chat-ewoc node)
+				  ;; This is just "chatter" between
+				  ;; the OTR implementations -
+				  ;; delete.
+				  (ewoc-delete jabber-chat-ewoc node)))))
+		(setq node (ewoc-prev jabber-chat-ewoc node)))))))))))
 
 ;;;###autoload
 (defun jabber-otr-encrypt ()
@@ -241,12 +254,14 @@ OTR driver and waits for instructions."
 (defun jabber-otr--print-body (xml-data who mode)
   (when (eq who :foreign)
     (let ((otr-in-flight (jabber-xml-path xml-data '(otr-in-flight)))
-	  (otr-decoded (jabber-xml-path xml-data '(otr-decoded))))
+	  (otr-decoded (jabber-xml-path xml-data '(otr-decoded)))
+	  (otr-error (jabber-xml-path xml-data '(otr-error)))
+	  (otr-nothing (jabber-xml-path xml-data '(otr-nothing))))
       (cl-case mode
 	(:printp
 	 ;; Just checking whether we would output anything - "yes"
 	 ;; is correct enough.
-	 (or otr-in-flight otr-decoded))
+	 (or otr-in-flight otr-decoded otr-error otr-nothing))
 	(:insert
 	 (cond
 	  (otr-decoded
@@ -256,6 +271,14 @@ OTR driver and waits for instructions."
 	   ;; TODO: we don't know if this will end up being an actual
 	   ;; message.
 	   (insert "[OTR message in flight]")
+	   t)
+	  (otr-error
+	   (insert "[OTR error: " (cadr otr-error) "]")
+	   t)
+	  (otr-nothing
+	   ;; This shouldn't happen, as we try to remove such entries
+	   ;; from the ewoc.
+	   (insert "[OTR negotiation message]")
 	   t)))))))
 
 (provide 'jabber-otr)
