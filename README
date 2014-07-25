@@ -10,12 +10,13 @@ How to use it:
 
 2. Load jabber-otr.el.
 
-3. M-: (jabber-otr-start)
+3. Open a chat buffer (either by an incoming message, or by C-x C-j C-j).
 
-4. To send a message, use M-x jabber-otr-send.  Currently, the first
-   message you send is "lost" if an encrypted session hasn't been
-   established yet.  Just send it again.
+4a. If the other contact activates OTR, the chat buffer should switch
+    to encrypted mode automatically.
 
-5. Received messages should be decrypted automatically.
+4b. To request OTR, type M-x jabber-otr-encrypt.
+
+5. Send and receive messages as usual, more or less.
 
 TODO: verify signatures, improve UI, handle HTML.
