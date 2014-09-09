@@ -39,6 +39,14 @@
 Either plaintext, encrypted or finished.")
 (make-variable-buffer-local 'jabber-otr--state)
 
+(defvar jabber-otr--our-key-fingerprint nil
+  "Fingerprint of our public key.")
+(make-variable-buffer-local 'jabber-otr--our-key-fingerprint)
+
+(defvar jabber-otr--their-key-fingerprint nil
+  "Fingerprint of public key of contact in current buffer.")
+(make-variable-buffer-local 'jabber-otr--their-key-fingerprint)
+
 (defvar jabber-otr--debug nil
   "Display debug messages for OTR program.")
 
@@ -109,10 +117,14 @@ Either plaintext, encrypted or finished.")
 	 (them (aref closure 2))
 	 (buffer (get-buffer (jabber-chat-get-buffer them)))
 	 (new-state (intern (cdr (assq 'new_state response))))
-	 (type (and (arrayp closure) (aref closure 0))))
+	 (type (and (arrayp closure) (aref closure 0)))
+	 (our-fingerprint (cdr (assq 'our_fingerprint response)))
+	 (their-fingerprint (cdr (assq 'their_fingerprint response))))
     (when buffer
       (with-current-buffer buffer
-	(let ((previous-state jabber-otr--state))
+	(let ((previous-state jabber-otr--state)
+	      (our-previous-key jabber-otr--our-key-fingerprint)
+	      (their-previous-key jabber-otr--their-key-fingerprint))
 	  ;; TODO: appropriate for all states?
 	  (setq jabber-send-function 'jabber-otr-send)
 	  (setq jabber-otr--state new-state)
@@ -121,7 +133,31 @@ Either plaintext, encrypted or finished.")
 	     jabber-chat-ewoc
 	     (list :notice (format "OTR state changed from %s to %s"
 				   previous-state new-state)
-		   :time (current-time)))))))
+		   :time (current-time))))
+	  (unless (equal our-previous-key our-fingerprint)
+	    (setq jabber-otr--our-key-fingerprint our-fingerprint)
+	    (ewoc-enter-last
+	     jabber-chat-ewoc
+	     (list :notice (format "Our key fingerprint is %s" our-fingerprint)
+		   :time (current-time))))
+	  (setq jabber-otr--their-key-fingerprint their-fingerprint)
+	  ;; TODO: verify contact's fingerprint
+	  (cond
+	   ((null their-previous-key)
+	    (ewoc-enter-last
+	     jabber-chat-ewoc
+	     (list :notice (format "%s's fingerprint is %s"
+				   (jabber-jid-displayname jabber-chatting-with)
+				   their-fingerprint)
+		   :time (current-time))))
+	   ((not (equal their-fingerprint their-previous-key))
+	    (ewoc-enter-last
+	     jabber-chat-ewoc
+	     (list :notice (format "%s's fingerprint changed from %s to %s"
+				   (jabber-jid-displayname jabber-chatting-with)
+				   their-previous-key
+				   their-fingerprint)
+		   :time (current-time))))))))
     (cond
      ((equal type "send")
       (let* ((jc (jabber-find-connection us))

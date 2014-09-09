@@ -127,7 +127,9 @@ class EmacsOtr:
             # TODO: do something with TLVs
             new_state = state_to_string(context.state)
             return {response: result, 'injected': injected,
-                    'new_state': new_state, 'closure': closure}
+                    'new_state': new_state, 'closure': closure,
+                    'our_fingerprint': context.user.getPrivkey() and context.user.getPrivkey().cfingerprint(),
+                    'their_fingerprint': context.getCurrentKey() and context.getCurrentKey().cfingerprint()}
         elif which == 'send':
             account_name = cmd['account']
             contact = cmd['contact']
@@ -142,7 +144,9 @@ class EmacsOtr:
                                          appdata = inject)
             new_state = state_to_string(context.state)
             return {'result': result, 'injected': injected,
-                    'new_state': new_state, 'closure': closure}
+                    'new_state': new_state, 'closure': closure,
+                    'our_fingerprint': context.user.getPrivkey() and context.user.getPrivkey().cfingerprint(),
+                    'their_fingerprint': context.getCurrentKey() and context.getCurrentKey().cfingerprint()}
         else:
             return {'error': 'Unknown commmand "%s"' % which}
 
