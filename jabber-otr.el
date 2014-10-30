@@ -26,11 +26,18 @@
 
 (require 'json)
 
+(defgroup jabber-otr nil
+  "Settings for OTR encryption for jabber.el"
+  :group 'jabber)
+
 (defvar jabber-otr-program
   (expand-file-name "emacs-otr.py" (file-name-directory load-file-name))
   "Location of the emacs-otr.py program.")
 
-(defvar jabber-otr-dir (locate-user-emacs-file "jabber-otr"))
+(defcustom jabber-otr-directory (locate-user-emacs-file "jabber-otr")
+  "Directory for files related to OTR encryption."
+  :group 'jabber-otr
+  :type 'directory)
 
 (defvar jabber-otr-process nil)
 
@@ -56,13 +63,13 @@ Either plaintext, encrypted or finished.")
     ;; This directory should be readable only by the owner.
     (set-default-file-modes #o700)
     (unwind-protect
-	(make-directory jabber-otr-dir t)
+	(make-directory jabber-otr-directory t)
       (set-default-file-modes old-umask)))
   (let* (;; Need to use raw-text to get byte counts right
 	 (coding-system-for-write 'raw-text)
 	 (coding-system-for-read 'raw-text)
 	 (process (start-process "jabber-otr" (generate-new-buffer "jabber-otr")
-				 jabber-otr-program (expand-file-name jabber-otr-dir))))
+				 jabber-otr-program (expand-file-name jabber-otr-directory))))
     (setq jabber-otr-process process)
     (set-process-filter process 'jabber-otr-filter)
     (set-process-sentinel process 'jabber-otr-sentinel)))
