@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'json)
+(require 'button)
 
 (defgroup jabber-otr nil
   "Settings for OTR encryption for jabber.el"
@@ -38,6 +39,13 @@
   "Directory for files related to OTR encryption."
   :group 'jabber-otr
   :type 'directory)
+
+(defcustom jabber-otr-message-history nil
+  "If non-nil, log message history for encrypted messages.
+This is the default setting.  It can be overridden for
+individual message buffers."
+  :group 'jabber-otr
+  :type 'boolean)
 
 (defvar jabber-otr-process nil)
 
@@ -65,6 +73,9 @@ Either plaintext, encrypted or finished.")
     (unwind-protect
 	(make-directory jabber-otr-directory t)
       (set-default-file-modes old-umask)))
+  (require 'jabber-history)
+  (add-hook 'jabber-history-inhibit-received-message-functions
+	    'jabber-otr--inhibit-history)
   (let* (;; Need to use raw-text to get byte counts right
 	 (coding-system-for-write 'raw-text)
 	 (coding-system-for-read 'raw-text)
@@ -140,7 +151,9 @@ Either plaintext, encrypted or finished.")
 	     jabber-chat-ewoc
 	     (list :notice (format "OTR state changed from %s to %s"
 				   previous-state new-state)
-		   :time (current-time))))
+		   :time (current-time)))
+	    (when (eq new-state 'encrypted)
+	      (jabber-otr--notice-message-logging)))
 	  (unless (equal our-previous-key our-fingerprint)
 	    (setq jabber-otr--our-key-fingerprint our-fingerprint)
 	    (ewoc-enter-last
@@ -172,10 +185,11 @@ Either plaintext, encrypted or finished.")
 	     (result (cdr (assq 'result response))))
 	;; TODO: injected?  I'm not sure why we sometimes get one and
 	;; sometimes the other.
-	(dolist (injected (append injected-messages nil))
-	  (jabber-send-message jc them nil injected "chat"))
-	(when result
-	  (jabber-send-message jc them nil result "chat"))))
+	(let ((jabber-history-enabled nil))
+	  (dolist (injected (append injected-messages nil))
+	    (jabber-send-message jc them nil injected "chat"))
+	  (when result
+	    (jabber-send-message jc them nil result "chat")))))
      ((equal type "receive")
       (let* ((n (aref closure 3))
 	     (entry (assq n jabber-otr--messages-in-flight))
@@ -185,15 +199,22 @@ Either plaintext, encrypted or finished.")
 	     (jc (jabber-find-connection us)))
 	;; TODO: handle result too
 	;; Convert injected-messages from vector to list
-	(dolist (injected (append injected-messages nil))
-	  (jabber-send-message jc them nil injected "chat"))
+	(let ((jabber-history-enabled nil))
+	  (dolist (injected (append injected-messages nil))
+	    (jabber-send-message jc them nil injected "chat")))
 	(setq jabber-otr--messages-in-flight
 	      (delq entry jabber-otr--messages-in-flight))
 	(let ((in-flight-notice (assq 'otr-in-flight (cdr entry))))
 	  (cond
 	   (result
 	    (setf (car in-flight-notice) 'otr-decoded)
-	    (setf (cadr in-flight-notice) result))
+	    (setf (cadr in-flight-notice) result)
+	    (when (and jabber-history-enabled
+		       (if buffer
+			   (buffer-local-value 'jabber-otr-message-history buffer)
+			 jabber-otr-message-history))
+	      (jabber-history-log-message
+	       "in" them nil result (current-time))))
 	   (err
 	    (setf (car in-flight-notice) 'otr-error)
 	    (setf (cadr in-flight-notice) err))
@@ -245,6 +266,10 @@ This doesn't directly send an XMPP stanza, but sends it to our
 OTR driver and waits for instructions."
   (if (eq jabber-otr--state 'encrypted)
        (let ((our-jid (jabber-connection-bare-jid jc)))
+	 (when (and jabber-history-enabled jabber-otr-message-history)
+	   (jabber-history-log-message
+	    "out" nil jabber-chatting-with
+	    message (current-time)))
 	 (jabber-otr--ensure-started)
 	 (jabber-maybe-print-rare-time
 	  (ewoc-enter-last
@@ -258,7 +283,7 @@ OTR driver and waits for instructions."
 		:contact (jabber-jid-user jabber-chatting-with)
 		:body message
 		:closure (list "send" our-jid jabber-chatting-with))))
-    (error "Attempted to send encrypted message in OTR state %s"
+    (user-error "Attempted to send encrypted message in OTR state %s"
 	   jabber-otr--state)))
 
 (defun jabber-otr-receive (us them message n)
@@ -269,6 +294,43 @@ OTR driver and waits for instructions."
 	 :contact them
 	 :body message
 	 :closure (list "receive" us them n))))
+
+(defun jabber-otr-toggle-message-logging ()
+  "Toggle message history for encrypted messages in the current chat buffer."
+  (interactive)
+  (unless (derived-mode-p 'jabber-chat-mode)
+    (error "Not in chat buffer"))
+  (setq-local jabber-otr-message-history
+	      (not jabber-otr-message-history))
+  (jabber-otr--notice-message-logging))
+
+(defun jabber-otr--notice-message-logging ()
+  (ewoc-enter-last
+   jabber-chat-ewoc
+   (list :notice
+	 (if (not jabber-history-enabled)
+	     "Message logging turned off globally."
+	   (format "Message logging is %s.  %s."
+		   (if jabber-otr-message-history
+		       "on"
+		     "off")
+		   (with-temp-buffer
+		     (insert-text-button
+		      "Toggle for this session"
+		      'action (lambda (&rest _)
+				(jabber-otr-toggle-message-logging)))
+		     (insert ".  ")
+		     (insert-text-button
+		      "Set for all encrypted sessions"
+		      'action (lambda (&rest _)
+				(customize-option 'jabber-otr-message-history)))
+		     (buffer-string))))
+	 :time (current-time))))
+
+(defun jabber-otr--inhibit-history (_jc xml-data)
+  (let ((body (jabber-xml-path xml-data '(body ""))))
+    ;; Don't save encrypted messages in history.
+    (string-prefix-p "?OTR" body)))
 
 ;; This needs to come before jabber-chat-normal-body:
 (eval-after-load "jabber-chat"
