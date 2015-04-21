@@ -59,6 +59,11 @@ individual message buffers."
   "Face for incoming messages that are encrypted but not verified."
   :group 'jabber-otr)
 
+(defface jabber-otr-encrypted-sent
+  '((t (:background "PaleGreen4" :inherit jabber-chat-text-foreign)))
+  "Face for encrypted outgoing messages."
+  :group 'jabber-otr)
+
 (defvar jabber-otr-process nil)
 
 (defvar jabber-otr--state 'plaintext
@@ -286,7 +291,7 @@ OTR driver and waits for instructions."
 	 (jabber-maybe-print-rare-time
 	  (ewoc-enter-last
 	   jabber-chat-ewoc
-	   (list :local `(message () (body () ,message))
+	   (list :local `(message () (otr-decoded ,message))
 		 :time (current-time))))
 	 (jabber-otr--send-command
 	  jabber-otr-process
@@ -369,36 +374,42 @@ OTR driver and waits for instructions."
 	(jabber-otr-receive us them body n)))))
 
 (defun jabber-otr--print-body (xml-data who mode)
-  (when (eq who :foreign)
-    (let ((otr-in-flight (jabber-xml-path xml-data '(otr-in-flight)))
-	  (otr-decoded (jabber-xml-path xml-data '(otr-decoded)))
-	  (otr-error (jabber-xml-path xml-data '(otr-error)))
-	  (otr-nothing (jabber-xml-path xml-data '(otr-nothing))))
-      (cl-case mode
-	(:printp
-	 ;; Just checking whether we would output anything - "yes"
-	 ;; is correct enough.
-	 (or otr-in-flight otr-decoded otr-error otr-nothing))
-	(:insert
-	 (cond
-	  (otr-decoded
-	   (insert
-	    (propertize (cadr otr-decoded)
-			'face 'jabber-otr-encrypted-unverified))
-	   t)
-	  (otr-in-flight
-	   ;; TODO: we don't know if this will end up being an actual
-	   ;; message.
-	   (insert "[OTR message in flight]")
-	   t)
-	  (otr-error
-	   (insert "[OTR error: " (cadr otr-error) "]")
-	   t)
-	  (otr-nothing
-	   ;; This shouldn't happen, as we try to remove such entries
-	   ;; from the ewoc.
-	   (insert "[OTR negotiation message]")
-	   t)))))))
+  (let ((otr-in-flight (jabber-xml-path xml-data '(otr-in-flight)))
+	(otr-decoded (jabber-xml-path xml-data '(otr-decoded)))
+	(otr-error (jabber-xml-path xml-data '(otr-error)))
+	(otr-nothing (jabber-xml-path xml-data '(otr-nothing))))
+    (cl-case mode
+      (:printp
+       ;; Just checking whether we would output anything - "yes"
+       ;; is correct enough.
+       (or otr-in-flight otr-decoded otr-error otr-nothing))
+      (:insert
+       (cond
+	(otr-decoded
+	 (insert
+	  (propertize (cadr otr-decoded)
+		      'face
+		      (cond
+		       ((eq who :local)
+			'jabber-otr-encrypted-sent)
+		       (t
+			;; TODO: use appropriate face if contact is
+			;; verified.
+			'jabber-otr-encrypted-unverified))))
+	 t)
+	(otr-in-flight
+	 ;; TODO: we don't know if this will end up being an actual
+	 ;; message.
+	 (insert "[OTR message in flight]")
+	 t)
+	(otr-error
+	 (insert "[OTR error: " (cadr otr-error) "]")
+	 t)
+	(otr-nothing
+	 ;; This shouldn't happen, as we try to remove such entries
+	 ;; from the ewoc.
+	 (insert "[OTR negotiation message]")
+	 t))))))
 
 (provide 'jabber-otr)
 ;;; jabber-otr.el ends here
