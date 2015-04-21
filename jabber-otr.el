@@ -175,7 +175,7 @@ Either plaintext, encrypted or finished.")
 	  (setq jabber-otr--their-key-fingerprint their-fingerprint)
 	  ;; TODO: verify contact's fingerprint
 	  (cond
-	   ((null their-previous-key)
+	   ((and their-fingerprint (null their-previous-key))
 	    (ewoc-enter-last
 	     jabber-chat-ewoc
 	     (list :notice (format "%s's fingerprint is %s"
