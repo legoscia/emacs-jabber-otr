@@ -66,7 +66,7 @@ Either plaintext, encrypted or finished.")
   "Display debug messages for OTR program.")
 
 (defun jabber-otr-start ()
-  ;; TODO: when requiring Emacs 24.5, use with-file-modes
+  ;; TODO: when requiring Emacs 25, use with-file-modes
   (let ((old-umask (default-file-modes)))
     ;; This directory should be readable only by the owner.
     (set-default-file-modes #o700)
