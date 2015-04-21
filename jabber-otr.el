@@ -26,6 +26,7 @@
 
 (require 'json)
 (require 'button)
+(require 'jabber-chat)
 
 (defgroup jabber-otr nil
   "Settings for OTR encryption for jabber.el"
@@ -46,6 +47,17 @@ This is the default setting.  It can be overridden for
 individual message buffers."
   :group 'jabber-otr
   :type 'boolean)
+
+;; TODO: not currently used, as verification is not implemented
+(defface jabber-otr-encrypted
+  '((t (:background "PaleGreen4" :inherit jabber-chat-text-foreign)))
+  "Face for incoming messages that are encrypted and verified."
+  :group 'jabber-otr)
+
+(defface jabber-otr-encrypted-unverified
+  '((t (:background "orange4" :inherit jabber-chat-text-foreign)))
+  "Face for incoming messages that are encrypted but not verified."
+  :group 'jabber-otr)
 
 (defvar jabber-otr-process nil)
 
@@ -370,7 +382,9 @@ OTR driver and waits for instructions."
 	(:insert
 	 (cond
 	  (otr-decoded
-	   (insert (cadr otr-decoded))
+	   (insert
+	    (propertize (cadr otr-decoded)
+			'face 'jabber-otr-encrypted-unverified))
 	   t)
 	  (otr-in-flight
 	   ;; TODO: we don't know if this will end up being an actual
