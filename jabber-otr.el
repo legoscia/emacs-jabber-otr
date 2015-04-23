@@ -48,6 +48,11 @@ individual message buffers."
   :group 'jabber-otr
   :type 'boolean)
 
+(defcustom jabber-otr-start-implicitly t
+  "If non-nil, start encryption when receiving whitespace-tagged message."
+  :group 'jabber-otr
+  :type 'boolean)
+
 ;; TODO: not currently used, as verification is not implemented
 (defface jabber-otr-encrypted
   '((t (:background "PaleGreen4" :inherit jabber-chat-text-foreign)))
@@ -362,16 +367,43 @@ OTR driver and waits for instructions."
 (defvar jabber-otr--messages-in-flight ())
 
 (defun jabber-otr--handle-message (jc xml-data)
-  (let ((body (jabber-xml-path xml-data '(body "")))
-	(them (jabber-jid-user (jabber-xml-get-attribute xml-data 'from)))
-	(us (jabber-connection-bare-jid jc)))
-    (when (and body (string-prefix-p "?OTR" body))
-      ;; This looks like an OTR message.
-      (jabber-otr--ensure-started)
-      (let ((n (cl-incf jabber-otr--counter)))
-	(nconc xml-data (list (list 'otr-in-flight () (number-to-string n))))
-	(push (cons n xml-data) jabber-otr--messages-in-flight)
-	(jabber-otr-receive us them body n)))))
+  (unless (jabber-muc-message-p xml-data)
+    (let* ((body (jabber-xml-path xml-data '(body "")))
+	   (from (jabber-xml-get-attribute xml-data 'from))
+	   (them (jabber-jid-user from))
+	   (us (jabber-connection-bare-jid jc)))
+      ;; TODO: anything that's "inside an encrypted conversation" should
+      ;; go here, even if it's not actually encrypted.
+      (cond
+       ((jabber-muc-sender-p from)
+	;; TODO: handle MUC private messages somehow
+	)
+       ((and body (string-prefix-p "?OTR" body))
+	;; This looks like an OTR message.
+	(jabber-otr--ensure-started)
+	(let ((n (cl-incf jabber-otr--counter)))
+	  (nconc xml-data (list (list 'otr-in-flight () (number-to-string n))))
+	  (push (cons n xml-data) jabber-otr--messages-in-flight)
+	  (jabber-otr-receive us them body n)))
+       ((and jabber-otr-start-implicitly
+	     body
+	     (jabber-otr--whitespace-tagged-p body))
+	;; The contact passively suggests that they support OTR v2, and
+	;; we want to start using it.
+	(jabber-otr--ensure-started)
+	(with-current-buffer (jabber-chat-create-buffer jc from)
+	  (jabber-otr-encrypt)))))))
+
+(defun jabber-otr--whitespace-tagged-p (body)
+  (string-match-p
+   (concat
+    ;; Base
+    "\s\t\s\s\t\t\t\t\s\t\s\t\s\t\s\s"
+    ;; Ignore any number of sets of 8 all-space-or-tab bytes.
+    "\\(?:[\s\t]\\{8\\}\\)*"
+    ;; Version 2
+    "\s\s\t\t\s\s\t\s")
+   body))
 
 (defun jabber-otr--print-body (xml-data who mode)
   (let ((otr-in-flight (jabber-xml-path xml-data '(otr-in-flight)))
