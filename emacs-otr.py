@@ -124,6 +124,9 @@ class EmacsOtr:
             except potr.context.NotEncryptedError:
                 response = 'error'
                 result = 'Received encrypted message, but couldn\'t decrypt it'
+            except potr.context.ErrorReceived, e:
+                response = 'error'
+                result = 'Received error: ' + str(e)
             # TODO: do something with TLVs
             new_state = state_to_string(context.state)
             return {response: result, 'injected': injected,
