@@ -2,8 +2,11 @@
 
 ;; Copyright (C) 2014  Magnus Henoch
 
-;; Author: Magnus Henoch <magnus@erlang-solutions.com>
+;; Author: Magnus Henoch <magnus.henoch@gmail.com>
 ;; Keywords: comm
+;; Version: 0.1
+;; Package-Requires: ((jabber "0.8.92"))
+;; URL: https://github.com/legoscia/emacs-jabber-otr/
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -359,6 +362,7 @@ OTR driver and waits for instructions."
   '(add-to-list 'jabber-body-printers 'jabber-otr--print-body))
 
 ;; This needs to come before jabber-process-chat
+;;;###autoload
 (eval-after-load "jabber-core"
   '(add-to-list 'jabber-message-chain 'jabber-otr--handle-message))
 
@@ -366,6 +370,7 @@ OTR driver and waits for instructions."
 
 (defvar jabber-otr--messages-in-flight ())
 
+;;;###autoload
 (defun jabber-otr--handle-message (jc xml-data)
   (unless (jabber-muc-message-p xml-data)
     (let* ((body (jabber-xml-path xml-data '(body "")))
