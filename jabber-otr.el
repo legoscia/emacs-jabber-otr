@@ -5,7 +5,7 @@
 ;; Author: Magnus Henoch <magnus.henoch@gmail.com>
 ;; Keywords: comm
 ;; Version: 0.1
-;; Package-Requires: ((jabber "0.8.92"))
+;; Package-Requires: ((emacs "24") (jabber "0.8.92"))
 ;; URL: https://github.com/legoscia/emacs-jabber-otr/
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -46,6 +46,7 @@
 (require 'json)
 (require 'button)
 (require 'jabber-chat)
+(require 'jabber-muc)
 
 (defgroup jabber-otr nil
   "Settings for OTR encryption for jabber.el"
@@ -105,6 +106,8 @@ Either plaintext, encrypted or finished.")
 
 (defvar jabber-otr--debug nil
   "Display debug messages for OTR program.")
+
+(defvar jabber-otr--messages-in-flight ())
 
 (defun jabber-otr-start ()
   ;; TODO: when requiring Emacs 25, use with-file-modes
@@ -383,8 +386,6 @@ OTR driver and waits for instructions."
   '(add-to-list 'jabber-message-chain 'jabber-otr--handle-message))
 
 (defvar jabber-otr--counter 0)
-
-(defvar jabber-otr--messages-in-flight ())
 
 ;;;###autoload
 (defun jabber-otr--handle-message (jc xml-data)
