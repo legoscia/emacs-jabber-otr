@@ -46,6 +46,7 @@
 (require 'json)
 (require 'button)
 (require 'jabber-chat)
+(require 'jabber-muc)
 
 (defgroup jabber-otr nil
   "Settings for OTR encryption for jabber.el"
