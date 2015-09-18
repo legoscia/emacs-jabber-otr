@@ -5,7 +5,7 @@
 ;; Author: Magnus Henoch <magnus.henoch@gmail.com>
 ;; Keywords: comm
 ;; Version: 0.1
-;; Package-Requires: ((jabber "0.8.92"))
+;; Package-Requires: ((emacs "24") (jabber "0.8.92"))
 ;; URL: https://github.com/legoscia/emacs-jabber-otr/
 
 ;; This program is free software; you can redistribute it and/or modify
