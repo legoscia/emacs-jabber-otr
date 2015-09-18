@@ -107,6 +107,8 @@ Either plaintext, encrypted or finished.")
 (defvar jabber-otr--debug nil
   "Display debug messages for OTR program.")
 
+(defvar jabber-otr--messages-in-flight ())
+
 (defun jabber-otr-start ()
   ;; TODO: when requiring Emacs 25, use with-file-modes
   (let ((old-umask (default-file-modes)))
@@ -384,8 +386,6 @@ OTR driver and waits for instructions."
   '(add-to-list 'jabber-message-chain 'jabber-otr--handle-message))
 
 (defvar jabber-otr--counter 0)
-
-(defvar jabber-otr--messages-in-flight ())
 
 ;;;###autoload
 (defun jabber-otr--handle-message (jc xml-data)
